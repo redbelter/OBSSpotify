@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+ @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+ html{--acc:#37ff9a;}
+ html,body{margin:0;padding:0;background:transparent;overflow:hidden;
+   font:400 22px "VT323","Consolas",monospace;color:#FFFFFF;letter-spacing:0.3px;}
+ #chat{display:flex;flex-direction:column;justify-content:flex-end;height:100vh;padding:4px 10px;box-sizing:border-box;}
+ .line{overflow-wrap:anywhere;padding:2px 8px;margin:1px 0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+   background:rgba(15,17,24,0.78);border-left:2px solid var(--acc,#37ff9a);border-radius:4px;
+   text-shadow:0 1px 2px rgba(0,0,0,0.9);}
+ .line .u{color:#CFE3F5;}
+ .line.sys{color:#AEB9C6;}
+</style>
+</head>
+<body>
+<div id="chat"></div>
+<script>
+var CH="https:"; // unused
+var MAX=6; // with wrapping on, fewer lines fill the box faster
+var box=document.getElementById("chat");
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function add(u,t,sys){
+  var d=document.createElement("div");
+  d.className="line"+(sys?" sys":"");
+  d.innerHTML=sys?esc(t):('<span class="u">'+esc(u)+':</span> '+esc(t));
+  box.appendChild(d);
+  while(box.children.length>MAX)box.removeChild(box.firstChild);
+}
+function clean(s){return s.replace(/[\x01]/g,"").replace(/\s+/g," ").trim();}
+function connect(){
+  var ws=new WebSocket("wss://irc-ws.chat.twitch.tv:443");
+  ws.onopen=function(){
+    ws.send("CAP REQ :twitch.tv/tags twitch.tv/commands\r\n");
+    ws.send("NICK justinfan48291\r\n");
+    ws.send("JOIN #redbelter\r\n");
+  };
+  ws.onmessage=function(ev){
+    var msgs=ev.data.split("\r\n");
+    for(var i=0;i<msgs.length;i++){
+      var m=msgs[i]; if(!m)continue;
+      if(m.indexOf("PING")==0){ws.send("PONG :tmi.twitch.tv\r\n");continue;}
+      var pm=m.indexOf("PRIVMSG ");
+      if(pm==-1)continue;
+      var tags={},head=m,nick="";
+      if(m.charAt(0)=="@"){
+        var sp=m.indexOf(" ",1);
+        var tagstr=m.substring(1,sp);head=m.substring(sp+1);
+        tagstr.split(";").forEach(function(kv){
+          var eq=kv.indexOf("=");
+          if(eq>0)tags[kv.substring(0,eq)]=kv.substring(eq+1);
+        });
+      }
+      var um=head.match(/^:(\S+)!?\S* PRIVMSG #(\S+) :(.*)$/);
+      if(!um)continue;
+      nick=(tags["display-name"]||um[1].split("!")[0]);
+      var txt=clean(um[3]);
+      if(!txt||txt.charAt(0)=="/")continue; // skip /me etc for simplicity
+      add(nick,txt,false);
+    }
+  };
+  ws.onclose=function(){setTimeout(connect,2000);};
+  ws.onerror=function(){try{ws.close();}catch(e){}};
+}
+connect();
+</script>
+</body>
+</html>
