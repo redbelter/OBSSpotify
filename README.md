@@ -10,6 +10,10 @@ Now-playing + chat overlays for the OBS rig (Main PC -> Beelink split).
 - `np_page_beelink.ps1` runs on the Beelink (task `NpPage`, path `C:\stream\np_page.ps1`).
   Raw TcpListener on :5197; caches the pushed state, fetches iTunes artwork on track
   change (artworkUrl100 -> 100x100bb, embedded base64), serves the composed card HTML.
+`np.txt` format: `[source] Label: Artist - Title`, where source is `spotify`, `youtube`
+(or lowercase AUMID for other hosts), Label is `Now playing`/`Paused`. The push payload to
+the Beelink stays unprefixed `Label|Title` so the compositor parses it unchanged.
+
 - OBS now-playing browser source points at `http://192.168.15.16:5197/`.
 
 Notes: WinRT calls are gated to track-change/every-30s to avoid input hitches on the gaming box.

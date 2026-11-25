@@ -6,9 +6,9 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $tm=([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.IsGenericMethodDefinition } | Select-Object -First 1)
 $npp='C:\Users\red\stream\streamstuff\np.txt'
 $hb='C:\Users\red\stream\streamstuff\hb.txt'
-$last=$null; $prev=''
+$last=$null; $prev=''; $cycle=0
 function Get-Titles{
-  $res=@($null,$null,'Playing')
+  $res=@($null,$null,'Playing','other')
   try{
     $op=[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
     $task=$tm.MakeGenericMethod([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]).Invoke($null,@($op))
@@ -22,7 +22,14 @@ function Get-Titles{
     if($atask.IsCompleted){
       $mp=$atask.Result
       $ttl=[string]$mp.Title
-      if($ttl){ $res=@($ttl,[string]$mp.Artist,[string]$s.GetPlaybackInfo().PlaybackStatus) }
+      if($ttl){
+        $au=[string]$s.SourceAppUserModelId
+        $src='other'
+        if($au -like 'SpotifyAB*'){ $src='spotify' }
+        elseif($au -eq '308046B0AF4A39CB' -or $au -like '*Chrome*' -or $au -like '*chromium*'){ $src='youtube' }
+        elseif($au){ $src=$au.ToLower() }
+        $res=@($ttl,[string]$mp.Artist,[string]$s.GetPlaybackInfo().PlaybackStatus,$src)
+      }
     }
   }catch{}
   return $res
@@ -31,7 +38,7 @@ $wc=New-Object System.Net.WebClient
 while($true){
   try{
     $pair=Get-Titles
-    $t=$pair[0]; $ar=$pair[1]; $st=[string]$pair[2]
+    $t=$pair[0]; $ar=$pair[1]; $st=[string]$pair[2]; $src=[string]$pair[3]
     $s=''
     if($ar){ $s=$ar+' - ' }
     if($t){ $s=$s+$t }
@@ -39,11 +46,13 @@ while($true){
     if($s){
       $lbl='Now playing'
       if($st -eq 'Paused'){ $lbl='Paused' }
-      $key=$lbl+'|'+$s
-      if($key -ne $prev){
+      $key=$lbl+'|'+$src+'|'+$s
+      $cycle++
+      $beat=(($cycle % 20) -eq 0)
+      if(($key -ne $prev) -or $beat){
         $prev=$key
-        [IO.File]::WriteAllText($npp,($lbl+': '+$s),(New-Object System.Text.UTF8Encoding $false))
-        try{ $wc.UploadString('http://192.168.15.16:5197/push',$key) }catch{}
+        [IO.File]::WriteAllText($npp,('['+$src+'] '+$lbl+': '+$s),(New-Object System.Text.UTF8Encoding $false))
+        try{ $wc.UploadString('http://192.168.15.16:5197/push',($lbl+'|'+$s)) }catch{}
       }
     }
     [IO.File]::WriteAllText($hb,(Get-Date).ToString('HH:mm:ss'),(New-Object System.Text.UTF8Encoding $false))
