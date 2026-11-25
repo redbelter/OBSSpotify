@@ -34,6 +34,16 @@ function Get-Titles{
   }catch{}
   return $res
 }
+function Get-BrowserUrl([string]$ttl){
+  # Resolve browser-tab URL from page title via Firefox places.sqlite (np_url.py). Read-only snapshot.
+  try{
+    if(-not $ttl){ return '' }
+    $out=(& python 'C:/Users/red/stream/streamstuff/np_url.py' $ttl 2>$null)
+    if($LASTEXITCODE -ne 0 -or -not $out){ return '' }
+    return ([string]$out).Trim()
+  }catch{}
+  return ''
+}
 $wc=New-Object System.Net.WebClient
 while($true){
   try{
@@ -51,7 +61,12 @@ while($true){
       $beat=(($cycle % 20) -eq 0)
       if(($key -ne $prev) -or $beat){
         $prev=$key
-        [IO.File]::WriteAllText($npp,('['+$src+'] '+$lbl+': '+$s),(New-Object System.Text.UTF8Encoding $false))
+        $line='['+$src+'] '+$lbl+': '+$s
+        if($src -ne 'spotify'){
+          $u=Get-BrowserUrl $t
+          if($u){ $line=$line+' :: '+$u }
+        }
+        [IO.File]::WriteAllText($npp,$line,(New-Object System.Text.UTF8Encoding $false))
         try{ $wc.UploadString('http://192.168.15.16:5197/push',($lbl+'|'+$s)) }catch{}
       }
     }
